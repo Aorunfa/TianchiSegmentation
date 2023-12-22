@@ -298,11 +298,6 @@ def remove_noise(mask, filter='Gaussian',
 ```
 ### 4.6 分割效果展示
 
-好的图
-
-一般的图
-
-滤波的对比图
 
 ## 五.总结与思考
 **总结**：
