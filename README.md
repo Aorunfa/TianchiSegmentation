@@ -32,9 +32,9 @@
 &emsp;&emsp;在训练资源有限的情况下，方案简单地将图片划分两类，正负样本比例小于15%的图片划分为0类，比例大于15%的图片划分为1类，分别表示范乡村和范城市两个场景；
 进一步，尝试了Resnet、VGG、GoogleNet的分类网络，Resnet34的分类网络对于两类样本的precision和recall指标能达到0.91左右，更深层的网络不会带来更好的效果；
 在VGG16的基础上，给激活函数前添加BN层可以将效果提升到0.93，但网络结构非常大，训练慢。GoogleNet效果在0.92，参数少，收敛快。
-最后网络选择VGG16_BN与GoogleNet进行集成。
-&emsp;&emsp;损失函数采用BCELoss，同时在训练阶段增加了图像增强操作，并在预测阶段采用TTA的策略减小过拟合风险，训练前期TTA效果与无TTA效果差异波动大，在训练后期两者波动明显减小并趋于稳定。
-|  &emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;模型&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp; |   &emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;各类别平均(precision+recall)/2&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;   |  
+最后网络选择VGG16_BN与GoogleNet进行集成。  
+&emsp;&emsp;损失函数采用BCELoss，同时在训练阶段增加了图像增强操作，并在预测阶段采用TTA的策略减小过拟合风险，训练前期TTA效果与无TTA效果差异波动大，在训练后期两者波动明显减小并趋于稳定。  
+|  &emsp;&emsp;&emsp;&emsp;&emsp;&emsp;模型&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp; |   &emsp;&emsp;&emsp;&emsp;&emsp;&emsp;各类别平均(precision+recall)/2&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;   |  
 | :----:    |    :----: |  
 | VGG16_BN  |   0.93  |  
 | GoogleNet  |   0.92  |  
@@ -63,12 +63,11 @@ if pre_model_path is not None:
     model.load_state_dict(torch.load(pre_model_path))
 model = model.to(device)
 ```
-&emsp;&emsp;对于小目标模型，选择backbone选择EfficientNet-b4融合层选择Unet，验证dice在0.88左右。
-同时微调2018年ICCV会议上用于图像的超分辨率重建的UHRNet结构，用于该小目标检测效果可以到达dice=**；
-fragNet GatedNet
+&emsp;&emsp;对于小目标模型，backbone选择EfficientNet-b4，融合结构选择Unet，验证dice在0.88左右。
+同时微调2018年ICCV会议上用于图像的超分辨率重建的UHRNet结构，用于该小目标检测效果可以到达dice=0.89左右；
 
 ### 4.2 图片预处理
-&emsp;&emsp;在数据预处理上，主要对数据进行进行标准化，将每个通道的pixel的数值归一到[-1,1]，加快模型训练的收敛。  
+&emsp;&emsp;在数据预处理上，主要对数据进行进行标准化，将每个通道的pixel的数值归一到[-1,1]，加快模型训练的收敛。
 需要注意的是，ToTensor()后img三个通道的RGB数值会放缩到[0,1],进一步统计数据集所有图片的每个通道的均值和标准差可以得到Normalize中的系数。
 ```python
 fixed_compose = transforms.Compose([transforms.ToPILImage(),
@@ -79,7 +78,7 @@ fixed_compose = transforms.Compose([transforms.ToPILImage(),
 ```
 ### 4.3 图片增强
 &emsp;&emsp;为了降低过拟合风险，采用数据增强扩展数据的代表性。在训练时对传入图像前进行了随机处理，
-主要使用了albumentations库对image和mask标签进行处理，主要包括随机翻转、旋转、椒盐、灰度对比度和亮度调整，可用有效提高测试过程的dice系数。
+主要使用了`albumentations`库对image和mask标签进行处理，主要包括随机翻转、旋转、椒盐、灰度对比度和亮度调整，可用有效提高测试过程的dice系数。
 ```python
 # 随机数据增强模块
 import albumentations as abm
@@ -307,23 +306,12 @@ def remove_noise(mask, filter='Gaussian',
 
 ## 五.总结与思考
 **总结**：
-从预测结果上看，模型对于一些模糊的小目标检测能力弱，可以尝试在数据预处理增加对边缘轮廓的锐化，在数据增强上增大随机剪裁放大的比例，
-有余力可在训练过程中进行多尺度训练。
-在模型结果选择上发现resnet34作为backbone效果比resnet50、101等效果要好很多，resnet34的残差层模块参数更多，
-带来的感受野更丰富；
-难分样本boosting的方式可能存在泛化能力下降的风险，方案只用到一种多折交叉检验确定超参的方法进行控制
+1. 分类模型GoogleNet参数量远小于VGG和Resnet，但效果相当，GoogleNet的融合策略更有利于特征提取，同时对于中间层的监督有利于减小梯度异常问题加快训练。
+2. 分割模型efficientNet+Unet组合的标签比更复杂的backbone+Unet++效率更快效果相当，在该问题上Unet++的融合结果存在很多冗余
+3. bce损失数增加dice损失，并在后对dice进行log变换有利于效果提升
+4. 分割效果很好时，使用CV2进行噪点过滤，开闭合区域连通等会导致效果下降，该方式更适用分割效果一般或较差的情形
+5. 在模型结果选择上发现resnet34作为backbone效果比resnet50、101等效果要好很多，resnet34的残差层模块参数更多，感受野更丰富；
 
 **其他尝试**：
 可以进一步尝试微调Darknet的模型家族，尝试金字塔结构的高低特征融合策略
-后处理探索CRF(条件随机场)，因为建筑分布集中，边缘与背景存在较为明显的分界，推测效果应该可以改善一些
-
-**其他比赛**
-语义分割进阶
-缺陷识别
-
-
-
-
-**分割线**
-***
----
+后处理探索CRF(条件随机场)，因为建筑分布集中，边缘与背景存在较为明显的分界，效果可能可以改善一些
