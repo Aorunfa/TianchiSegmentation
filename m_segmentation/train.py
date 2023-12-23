@@ -47,7 +47,7 @@ set_seed(2023)
 加载数据集
 """
 img_size = 512
-batch_size = 2
+batch_size = 6
 device = torch.device(
     "cuda" if torch.cuda.is_available() else "cpu")
 
@@ -127,10 +127,10 @@ for k, (train_idx, valid_idx) in enumerate(skfold_split):
 """
 加载网络模型
 """
-model = smp.Unet(encoder_name='efficientnet-b4',
-                 encoder_weights='imagenet',
-                 in_channels=3,
-                 classes=1)
+# model = smp.Unet(encoder_name='efficientnet-b4',
+#                  encoder_weights='imagenet',
+#                  in_channels=3,
+#                  classes=1)
 
 # model = smp.UnetPlusPlus(encoder_name='resnet34',
 #                           encoder_weights='imagenet',
@@ -138,12 +138,12 @@ model = smp.Unet(encoder_name='efficientnet-b4',
 #                           classes=1)
 
 # TODO 本地完成URnet的训练
-# model = UHRnet(num_classes=1)
-# init_weights(model)
+model = UHRnet(num_classes=1)
+init_weights(model)
 pre_model_path = None
-# pre_model_path = 'u2resnet38_4.pth'
-save_format = r'./pths/0split{}_unet-ef4.pth'
-
+pre_model_path = './pths/0split30_uhrnet.pth'
+# save_format = r'./pths/0split{}_unet-ef4.pth'
+save_format = r'./pths/0split{}_uhrnet'
 if pre_model_path is not None:
     model.load_state_dict(torch.load(pre_model_path))
 model = model.to(device)
