@@ -5,6 +5,7 @@ coding:utf-8
 @Author: Aocf
 @versionl: 3.
 '''
+
 import os
 import torch
 from torch.utils.data import Dataset
@@ -27,11 +28,6 @@ np.random.seed(2023)
 03: 模型融合，多折求平均，多模型投票
 {m1:sigmoid(avg[r_k0, r_k2,...]), m2:sigmoid(avg[r_k0, r_k2,...]), ...}
 多模型投票模型数量>=3
-resnet34 resnet50 + 其他网络
-
-unet + resnet101
-unet2 + efficentnet / resnext / xception
-deeplabv3
 """
 
 device = torch.device(
@@ -163,11 +159,12 @@ def get_predict(img, models):
     img = torch.reshape(img, [1, c, w, h])
     masks = []
     for model in models:
+        model.eval()
         masks.append(TTA(img, model))
     masks = torch.concat(masks)
     return masks.sum(0) / len(models)
 
-def bagaing(masks, threshold=0.5, method='voting'):
+def bagaing(masks, threshold=0.5, method='hard'):
     """
     对多个模型结果进行Bagging, 采用均值概率or投票
     :param masks:
@@ -176,23 +173,22 @@ def bagaing(masks, threshold=0.5, method='voting'):
     if isinstance(masks, list):
         masks = torch.concat(masks)
 
-    if method == 'voting':
+    if method == 'hard':  # 软投票
         masks = masks >= threshold
         masks = masks + 0
         mask = masks.sum(0) / masks.shape[0] > 0.501
         return mask + 0
     else:
-        # 返回概率均值
+        # 返回概率均值  # 硬投票
         masks = masks.sum(0) / masks.shape[0] >= threshold
         return masks + 0
 
 if __name__ == '__main__':
 
-
     # 获取模型
     pth_path = r'pths'
     model_dict = {}
-    for net in ['unet2', 'unet', 'deeplabv3']:
+    for net in ['unet2', 'unet']:
         for encoder in ['resnet34', 'efficientnet-b4']:
             m = get_kfole_medels(pth_path, net, encoder)
             if m is not None:
